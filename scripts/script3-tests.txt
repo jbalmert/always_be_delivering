@@ -1,0 +1,62 @@
+pipeline {
+    agent any
+
+    tools {
+        maven 'M3'
+    }
+
+    stages {
+        stage('Build') {
+            steps {
+                sh "${updatePomVersion()}"
+                sh 'mvn -B clean package -DskipTests'
+                archiveArtifacts artifacts: '**/target/*.jar'
+                sh 'git checkout pom.xml'
+            }
+        }
+
+        stage ('Test') {
+            steps {
+                sh 'mvn -B test'
+                sh 'mvn failsafe:integration-test'
+            }
+        }
+
+        stage('Tag') {
+            steps {
+                sh """               
+                  ${configureGitForUpdate()}
+                  ${updatePomVersion()}
+                  NEXT_VER=\$( grep '^    <version>.*</version>\$' pom.xml | awk -F'[><]' '{print \$3}' )
+                  ${commitPomVersionUpdate()}
+                  git tag -a \$NEXT_VER -m "[skip ci] Tagging build as \$NEXT_VER"
+                  git push origin --tags
+                """
+            }
+        }
+    }
+}
+
+def updatePomVersion() {
+     """
+     mvn -B build-helper:parse-version versions:set -DnewVersion=\\\${parsedVersion.majorVersion}.\\\${parsedVersion.minorVersion}.\\\${parsedVersion.nextIncrementalVersion} versions:commit
+     """
+}
+
+def commitPomVersionUpdate() {
+    """
+    git add pom.xml
+    git commit -m "[skip ci] Updating pom.xml version"
+    git push origin master
+    """
+}
+
+def configureGitForUpdate() {
+    """
+    git config user.email "jpbalmert@gmail.com"
+    git config user.name "Jenkins"
+    git checkout master
+    git reset --hard origin/master
+    """                
+}
+

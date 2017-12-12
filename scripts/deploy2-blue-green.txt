@@ -1,0 +1,29 @@
+node {
+   stage('Preparation') { 
+      git 'git://localhost:9418/cdd-workshop'
+   }
+   stage('Deploy') {
+     withMaven( maven:'M3') {
+         sh "${deploy(port_backup, tag)}"
+         // move traffic to backup environment
+         sh "${deploy(port_main, tag)}"
+         // move traffic to main environment
+     }
+         
+   }
+}
+
+def deploy(port, tag) {
+    """
+        git checkout tags/$tag
+         mvn clean package -DskipTests
+         ./shutdown.sh $port || true
+         ./startup.sh $port
+         while ./isDown.sh $port  
+         do
+            echo "Waiting on http://localhost:$port"
+            sleep 5
+         done
+    """
+}
+

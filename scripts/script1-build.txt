@@ -1,0 +1,19 @@
+pipeline {
+    agent any
+
+    tools {
+        maven 'M3'
+    }
+
+    stages {
+        stage('Build') {
+            steps {
+                sh "${updatePomVersion()}"
+                sh 'mvn -B clean package -DskipTests'
+                archiveArtifacts artifacts: '**/target/*.jar'
+                sh 'git checkout pom.xml'
+            }
+        }
+    }
+}
+
