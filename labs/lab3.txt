@@ -1,0 +1,38 @@
+pipeline {
+    agent any
+
+    tools {
+        jdk 'JDK'
+        maven 'M3'
+    }
+
+    stages {
+        stage('Build') {
+            steps {
+              configFileProvider(
+                 [configFile(fileId: 'maven-settings', variable: 'MAVEN_SETTINGS')]) {
+                sh 'ci/updateGitForPush.sh'
+                sh 'ci/incrementPomVersion.sh $MAVEN_SETTINGS'
+                sh 'mvn -B clean package -DskipTests'
+              }
+            }
+        }
+
+        stage('Commit version and tag') {
+          steps {
+            sh 'ci/commitPomVersion.sh'
+            sh 'ci/tag.sh'
+          }
+        }
+
+        stage('Push jar to Nexus') {
+          steps {
+            configFileProvider(
+                 [configFile(fileId: 'maven-settings', variable: 'MAVEN_SETTINGS')]) {
+              sh 'mvn -B -s $MAVEN_SETTINGS deploy -DskipTests'
+            }
+          }
+        }
+    }
+}
+

@@ -1,0 +1,21 @@
+pipeline {
+    agent any
+
+    tools {
+        jdk 'JDK'
+        maven 'M3'
+    }
+
+    stages {
+        stage('Build') {
+            steps {
+              configFileProvider(
+                 [configFile(fileId: 'maven-settings', variable: 'MAVEN_SETTINGS')]) {
+                sh 'mvn -B clean package -DskipTests'
+                archiveArtifacts artifacts: '**/target/*.jar'
+              }
+            }
+        }
+    }
+}
+

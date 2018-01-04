@@ -1,0 +1,65 @@
+pipeline {
+    agent any
+
+    tools {
+        jdk 'JDK'
+        maven 'M3'
+    }
+
+    stages {
+        stage('Build') {
+            steps {
+              configFileProvider(
+                 [configFile(fileId: 'maven-settings', variable: 'MAVEN_SETTINGS')]) {
+                sh 'ci/updateGitForPush.sh'
+                sh 'ci/incrementPomVersion.sh $MAVEN_SETTINGS'
+                sh 'mvn -B clean package -DskipTests'
+              }
+            }
+        }
+
+        stage('Test') {
+          steps {
+            configFileProvider(
+                 [configFile(fileId: 'maven-settings', variable: 'MAVEN_SETTINGS')]) {
+              sh 'mvn -B -s $MAVEN_SETTINGS test'
+              sh 'mvn -B -s $MAVEN_SETTINGS failsafe:integration-test'
+            }
+          }
+        }
+        
+        stage('Deploy for test') {
+          steps {
+            sh 'ci/deploy.sh test 8091'
+          }
+        }
+
+        stage('Run acceptance tests') {
+          steps {
+            configFileProvider(
+                 [configFile(fileId: 'maven-settings', variable: 'MAVEN_SETTINGS')]) {
+              sh 'ci/checkoutAcceptanceTests.sh'
+              sh 'cd ../acceptance-tests'
+              sh 'mvn clean install -Dport=8091'
+            }
+          }
+        }
+
+        stage('Commit version and tag') {
+          steps {
+            sh 'ci/commitPomVersion.sh'
+            sh 'ci/tag.sh'
+          }
+        }
+
+        stage('Push jar to Nexus') {
+          steps {
+            configFileProvider(
+                 [configFile(fileId: 'maven-settings', variable: 'MAVEN_SETTINGS')]) {
+              sh 'mvn -B -s $MAVEN_SETTINGS deploy -DskipTests'
+            }
+          }
+        }
+    }
+}
+

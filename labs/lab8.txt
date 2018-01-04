@@ -1,0 +1,72 @@
+pipeline {
+    agent any
+
+    tools {
+        jdk 'JDK'
+        maven 'M3'
+    }
+
+    stages {
+        stage('Build') {
+            steps {
+              configFileProvider(
+                 [configFile(fileId: 'maven-settings', variable: 'MAVEN_SETTINGS')]) {
+                sh 'ci/updateGitForPush.sh'
+                sh 'ci/incrementPomVersion.sh $MAVEN_SETTINGS'
+                sh 'mvn -B clean package -DskipTests'
+              }
+            }
+        }
+
+        stage('Test') {
+          steps {
+            parallel ( unitTest: {
+              configFileProvider(
+                 [configFile(fileId: 'maven-settings', variable: 'MAVEN_SETTINGS')]) {
+                  sh 'mvn -B -s $MAVEN_SETTINGS test'
+                }
+            },
+            integrationTests: {
+                configFileProvider(
+                   [configFile(fileId: 'maven-settings', variable: 'MAVEN_SETTINGS')]) {
+                  sh 'mvn -B -s $MAVEN_SETTINGS failsafe:integration-test'
+                }
+            },
+            acceptanceTests: {
+               configFileProvider(
+                    [configFile(fileId: 'maven-settings', variable: 'MAVEN_SETTINGS')]) {
+                  sh 'ci/deploy.sh 8091'
+                  sh 'ci/checkoutAcceptanceTests.sh'
+                  sh 'cd ../acceptance-tests'
+                  sh 'mvn clean install -Dport=8091'
+                }
+            })
+          }
+        }
+        
+        
+        stage('Commit version and tag') {
+          steps {
+            sh 'ci/commitPomVersion.sh'
+            sh 'ci/tag.sh'
+          }
+        }
+
+        stage('Push jar to Nexus') {
+          steps {
+            configFileProvider(
+                 [configFile(fileId: 'maven-settings', variable: 'MAVEN_SETTINGS')]) {
+              sh 'mvn -B -s $MAVEN_SETTINGS deploy -DskipTests'
+            }
+          }
+        }
+
+        stage('Deploy to production') {
+          steps {
+            sh 'ci/deploy.sh prod/green 10001'
+            sh 'ci/deploy.sh prod/blue 10002'
+          }
+        }
+    }
+}
+
