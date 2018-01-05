@@ -11,7 +11,7 @@ pipeline {
             steps {
               configFileProvider(
                  [configFile(fileId: 'maven-settings', variable: 'MAVEN_SETTINGS')]) {
-                sh 'mvn -B clean package -DskipTests'
+                sh 'mvn -B -s $MAVEN_SETTINGS clean package -DskipTests'
                 archiveArtifacts artifacts: '**/target/*.jar'
               }
             }

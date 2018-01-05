@@ -13,7 +13,7 @@ pipeline {
                  [configFile(fileId: 'maven-settings', variable: 'MAVEN_SETTINGS')]) {
                 sh 'ci/updateGitForPush.sh'
                 sh 'ci/incrementPomVersion.sh $MAVEN_SETTINGS'
-                sh 'mvn -B clean package -DskipTests'
+                sh 'mvn -B -s $MAVEN_SETTINGS clean package -DskipTests'
               }
             }
         }
